@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// enums
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum SessionMode {
+  ONLINE
+  IN_PERSON
+}
+
+enum ParticipantRole {
+  HOST
+  PARTICIPANT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskType {
+  TASK
+  EXAM
+  PROJECT
+  MEETING
+  OTHER
+}
+
+
+// core user
+
+model User {
+  id            Int                  @id @default(autoincrement())
+  name          String
+  email         String               @unique
+  passwordHash  String
+  role          UserRole             @default(USER)
+
+  // study sessions
+  createdSessions    StudySession[]      @relation("UserCreatedSessions")
+  sessionMemberships SessionParticipant[]
+
+  // tasks
+  tasks           Task[]
+
+  // pomodoro settings
+  pomodoroSettings PomodoroSettings?
+
+
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+}
+
+// study sessions
+
+model StudySession {
+  id              Int                 @id @default(autoincrement())
+  title           String
+  description     String?
+  startTime       DateTime
+  endTime         DateTime
+  mode            SessionMode         @default(ONLINE)
+  maxParticipants Int?                // null = no limit
+  isPublic        Boolean             @default(true)
+
+  createdById Int
+  createdBy   User                   @relation("UserCreatedSessions", fields: [createdById], references: [id])
+
+  participants  SessionParticipant[]
+
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+}
+
+model SessionParticipant {
+  id          Int             @id @default(autoincrement())
+  userId      Int
+  sessionId   Int
+  role        ParticipantRole @default(PARTICIPANT)
+  joinedAt    DateTime        @default(now())
+
+  user        User            @relation(fields: [userId], references: [id])
+  session     StudySession    @relation(fields: [sessionId], references: [id])
+
+  @@unique([userId, sessionId]) // a user can join a session only once
+}
+
+
+// tasks
+
+model Task {
+  id          Int        @id @default(autoincrement())
+  title       String
+  description String?
+  type        TaskType   @default(TASK)
+  subject     String?
+  dueDate     DateTime?
+  status      TaskStatus @default(TODO)
+  priority    Int?       // 1-5
+
+  userId      Int
+  user        User       @relation(fields: [userId], references: [id])
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+
+// pomodoro
+
+model PomodoroSettings {
+  id                      Int    @id @default(autoincrement())
+  userId                  Int    @unique
+  user                    User   @relation(fields: [userId], references: [id])
+
+  focusMinutes            Int    @default(25)
+  shortBreakMinutes       Int    @default(5)
+  longBreakMinutes        Int    @default(15)
+  sessionsBeforeLongBreak Int    @default(4)
+  autoStart               Boolean @default(false)
+}
+
